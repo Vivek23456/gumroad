@@ -208,11 +208,59 @@ const WithContent = ({
   });
   const isDesktop = useIsAboveBreakpoint("lg");
   const pages = content.rich_content_pages ?? [];
-  const [activePageIndex, setActivePageIndex] = React.useState(0);
+
+  // Create a unique storage key for this purchase/access
+  const storageKey = `gumroad_last_page_${props.redirect_id}`;
+
+  // Initialize activePageIndex from localStorage, falling back to 0
+  const getInitialPageIndex = (): number => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored !== null) {
+        const index = parseInt(stored, 10);
+        // Validate the index is within bounds
+        if (!isNaN(index) && index >= 0 && index < pages.length) {
+          return index;
+        }
+      }
+    } catch {
+      // localStorage may not be available (e.g., private browsing)
+    }
+    return 0;
+  };
+
+  const [activePageIndex, setActivePageIndex] = React.useState(getInitialPageIndex);
   const activePage = pages[activePageIndex];
   const showPageList = pages.length > 1 || (pages.length === 1 && (pages[0]?.title ?? "").trim() !== "");
   const hasPreviousPage = activePageIndex > 0;
   const hasNextPage = activePageIndex < pages.length - 1;
+  const contentRef = React.useRef<HTMLDivElement>(null);
+
+  // Persist activePageIndex to localStorage when it changes
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, String(activePageIndex));
+    } catch {
+      // localStorage may not be available
+    }
+  }, [activePageIndex, storageKey]);
+
+  // Scroll content to top when page changes
+  React.useEffect(() => {
+    if (contentRef.current) {
+      // Find the scrollable parent container
+      let scrollableParent: HTMLElement | null = contentRef.current.parentElement;
+      while (scrollableParent) {
+        const overflowY = window.getComputedStyle(scrollableParent).overflowY;
+        if (overflowY === "auto" || overflowY === "scroll") {
+          scrollableParent.scrollTop = 0;
+          break;
+        }
+        scrollableParent = scrollableParent.parentElement;
+      }
+    }
+  }, [activePageIndex]);
+
   const downloadableFiles: FileDownloadInfo[] = [];
   for (const f of contentFiles) {
     if (f.download_url && !f.external_link_url)
@@ -302,6 +350,7 @@ const WithContent = ({
       <PurchaseInfoProvider value={purchaseInfo}>
         <MediaUrlsProvider value={mediaUrlsValue}>
           <IsMobileAppViewProvider value={props.is_mobile_app_web_view}>
+            <div ref={contentRef}>
             {content.rich_content_pages !== null ? (
               activePage ? (
                 <ContentFilesProvider value={contentFiles}>
@@ -331,6 +380,7 @@ const WithContent = ({
               <DownloadFileList content_items={content.content_items} />
             ) : null}
           </IsMobileAppViewProvider>
+            </div>
         </MediaUrlsProvider>
       </PurchaseInfoProvider>
 

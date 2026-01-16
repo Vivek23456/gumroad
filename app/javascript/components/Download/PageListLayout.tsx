@@ -14,12 +14,12 @@ export const PageListLayout = ({
 }) => (
   <div
     className={classNames(
-      "flex min-h-0 flex-col gap-6 bg-background p-4 [scrollbar-gutter:stable] md:p-8 lg:flex-row lg:gap-16 lg:overflow-y-auto",
+      "flex min-h-0 flex-col gap-6 bg-background p-4 [scrollbar-gutter:stable] md:p-8 lg:flex-row lg:gap-16",
       className,
     )}
   >
-    <div className="flex flex-col gap-4 lg:sticky lg:top-0 lg:w-80 lg:pb-8">{pageList}</div>
-    <div className="h-0 flex-1">{children}</div>
+    <div className="flex flex-col gap-4 lg:h-full lg:w-80 lg:overflow-y-auto lg:pb-8">{pageList}</div>
+    <div className="h-0 flex-1 lg:overflow-y-auto">{children}</div>
   </div>
 );
 
