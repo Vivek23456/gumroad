@@ -1,0 +1,115 @@
+ARG RUBY_VERSION=3.4.3
+FROM ruby:${RUBY_VERSION}-slim-bullseye AS base
+
+RUN sed -i "s/bullseye main/bullseye main contrib non-free/" /etc/apt/sources.list \
+  && apt-get update -y -qq \
+  && apt-get install -yq --no-install-recommends \
+  build-essential \
+  ca-certificates \
+  curl \
+  ffmpeg \
+  fonts-dejavu \
+  fonts-takao \
+  fonts-wqy-microhei \
+  fonts-wqy-zenhei \
+  git \
+  imagemagick \
+  libcurl4-openssl-dev \
+  libgcrypt20 \
+  liblzma-dev \
+  libtag1-dev \
+  libvips-dev \
+  libxrender1 \
+  libxml2-dev \
+  libyaml-dev \
+  default-libmysqlclient-dev \
+  libssl-dev \
+  percona-toolkit \
+  pdftk \
+  ttf-wqy-microhei \
+  ttf-wqy-zenhei \
+  unzip \
+  wget \
+  zlib1g-dev \
+  && fc-cache -f -v \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN wget --quiet https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.4/wkhtmltox-0.12.4_linux-generic-amd64.tar.xz -O /tmp/wkhtmltox.tar.xz \
+  && tar xf /tmp/wkhtmltox.tar.xz -C /tmp \
+  && cp /tmp/wkhtmltox/bin/wkhtmltopdf /usr/local/bin/wkhtmltopdf \
+  && chmod +x /usr/local/bin/wkhtmltopdf \
+  && rm -rf /tmp/wkhtmltox* /tmp/wkhtmltox.tar.xz
+
+RUN mkdir -p /etc/apt/keyrings \
+  && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --batch --yes --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+  && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+  && apt-get update \
+  && apt-get install -y nodejs \
+  && corepack enable
+
+FROM base
+
+LABEL quay.expires-after=1w
+
+ENV BUNDLE_PATH=/bundle_path \
+    APP_DIR=/app
+
+ENV LANG=C.UTF-8
+
+RUN useradd -ms /bin/bash app \
+  && mkdir -p $APP_DIR \
+  && mkdir -p $BUNDLE_PATH \
+  && mkdir -p $APP_DIR/log \
+  && mkdir -p $APP_DIR/tmp
+
+COPY . $APP_DIR/
+
+RUN chmod -R 755 $BUNDLE_PATH \
+  && chmod -R 755 $APP_DIR \
+  && chmod -R 770 $APP_DIR/tmp \
+  && chmod -R 770 $APP_DIR/log \
+  && chown -R app:app $APP_DIR \
+  && chown -R root:app $BUNDLE_PATH
+
+RUN sed -r 's/(name="memory" value=")[^"]+"/\11GiB"/' -i /etc/ImageMagick-6/policy.xml \
+  && sed -r 's/(name="disk" value=")[^"]+"/\18GiB"/' -i /etc/ImageMagick-6/policy.xml \
+  && sed -r 's/(name="width" value=")[^"]+"/\150KP"/' -i /etc/ImageMagick-6/policy.xml \
+  && sed -r 's/(name="height" value=")[^"]+"/\150KP"/' -i /etc/ImageMagick-6/policy.xml
+
+ARG BUNDLE_GEMS__CONTRIBSYS__COM
+RUN cd $APP_DIR \
+  && bundle config set without '' \
+  && BUNDLE_GEMS__CONTRIBSYS__COM=$BUNDLE_GEMS__CONTRIBSYS__COM bundle install \
+  && gem install foreman \
+  && npm ci \
+  && npm run setup
+
+ENV DATABASE_HOST=db \
+    DATABASE_NAME=gumroad_development \
+    DATABASE_PORT=3306 \
+    DATABASE_USERNAME=root \
+    DATABASE_PASSWORD=password \
+    PUMA_WORKING_DIRECTORY=$APP_DIR \
+    REDIS_HOST=redis:6379/0 \
+    SIDEKIQ_REDIS_HOST=redis:6379/1 \
+    RPUSH_REDIS_HOST=redis:6379/2 \
+    RACK_ATTACK_REDIS_HOST=redis:6379/3 \
+    RAILS_ENV=development \
+    RACK_ENV=development \
+    NODE_ENV=development \
+    MONGO_DATABASE_URL=mongo:27017 \
+    MONGO_SECONDARY_DATABASE_URL=mongo:27017 \
+    MONGO_DATABASE_NAME=gumroad_log_development \
+    MONGO_DATABASE_USERNAME=username \
+    MONGO_DATABASE_PASSWORD=password \
+    MONGO_REPLICA_SET=empty_replica_set \
+    ELASTICSEARCH_HOST=http://elasticsearch:9200 \
+    AWS_S3_ENDPOINT=http://minio:9000 \
+    MEMCACHE_SERVERS=memcached \
+    IN_DOCKER=true
+
+WORKDIR $APP_DIR
+
+USER app
+
+CMD ["/bin/bash", "docker/web/dev.sh"]
