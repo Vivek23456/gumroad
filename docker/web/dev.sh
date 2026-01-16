@@ -9,7 +9,7 @@ if [ ! -f "tmp/pids/.keep" ]; then
   touch tmp/pids/.keep
 fi
 
-if [ ! -f "db/development.sqlite3" ] && [ ! -d "db/development.sqlite3" ]; then
+if ! bundle exec rails runner "ActiveRecord::Base.connection" 2>/dev/null; then
   echo "Setting up database..."
   bundle exec rails db:prepare
 fi

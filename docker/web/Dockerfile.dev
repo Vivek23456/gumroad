@@ -13,6 +13,7 @@ RUN sed -i "s/bullseye main/bullseye main contrib non-free/" /etc/apt/sources.li
   fonts-wqy-microhei \
   fonts-wqy-zenhei \
   git \
+  gnupg \
   imagemagick \
   libcurl4-openssl-dev \
   libgcrypt20 \
@@ -64,10 +65,18 @@ RUN useradd -ms /bin/bash app \
 
 COPY . $APP_DIR/
 
+RUN cd /tmp \
+  && curl -J -L -o GeoIP2-City.tar.gz https://download.maxmind.com/app/geoip_download\?edition_id\=GeoIP2-City\&license_key\=fxN7iBPUYfTS76V5\&suffix\=tar.gz \
+  && tar xzf GeoIP2-City.tar.gz \
+  && mv GeoIP2-City_* GeoIP2-City \
+  && mv GeoIP2-City/GeoIP2-City.mmdb $APP_DIR/lib/GeoIP2-City.mmdb \
+  && rm -rf /tmp/*
+
 RUN chmod -R 755 $BUNDLE_PATH \
   && chmod -R 755 $APP_DIR \
   && chmod -R 770 $APP_DIR/tmp \
   && chmod -R 770 $APP_DIR/log \
+  && chmod +x $APP_DIR/docker/web/dev.sh \
   && chown -R app:app $APP_DIR \
   && chown -R root:app $BUNDLE_PATH
 
@@ -112,4 +121,4 @@ WORKDIR $APP_DIR
 
 USER app
 
-CMD ["/bin/bash", "docker/web/dev.sh"]
+CMD ["/bin/bash", "-c", "cd $APP_DIR && bash docker/web/dev.sh"]

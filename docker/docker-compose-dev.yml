@@ -190,7 +190,7 @@ services:
       - AWS_S3_ENDPOINT=http://minio:9000
       - MEMCACHE_SERVERS=memcached
       - IN_DOCKER=true
-    command: ["/bin/bash", "docker/web/dev.sh"]
+    command: ["/bin/bash", "-c", "cd $APP_DIR && bash docker/web/dev.sh"]
     stdin_open: true
     tty: true
 
